@@ -8,21 +8,11 @@ from PIL import Image
 import utm
 import psycopg2
 import datetime
+import numpy as np
+
 
 
 class Database():
-    """
-    Represents and connects to the database. Retrieves data from database server.
-    -------
-    Attributes:
-        connection_string : str
-    -------
-    Methods:
-        get_table(self, query):
-            Connects to the database server and loads data to a data frame
-            according to the query parameter, which must be an SQL query in a string
-            Returns data frame
-    """
     def __init__(self, connection_string):
         self.connection_string = connection_string
     def get_table(self, query):
@@ -30,7 +20,7 @@ class Database():
         try: 
             self.conn = psycopg2.connect(self.connection_string)
             self.tabel = pd.read_sql_query(query, self.conn)
-            self.tabel["customdata"] = self.tabel.index   # "customdata" is used to filter data when selecting data points
+            self.tabel["customdata"] = self.tabel.index
             self.conn.close()
             return self.tabel
         except (Exception, psycopg2.DatabaseError) as error:
@@ -44,27 +34,13 @@ database = Database("host='p3-database-do-user-10084776-0.b.db.ondigitalocean.co
 
                                                                   
 class Plot():
-    """
-    Factory class for creating and updating a plotly express object.
-    Functions as a template for sub-classes.
-    -------
-    Methods:
-        get_df(self, query):
-            Uses the Database class to retrieve data from database server.
-            query must be a string with a SQL query.
-            Returns data frame
-        update_plot(self, selected_plot):
-            Updates the data that the plotly express object uses according
-            to the selected points.
-            Returns plotly express object as self.fig.
-    """
     def get_df(self, query):
         return database.get_table(query)
     #def fill_plot(self):
     def update_plot(self, selectedpoints):
         selected_points = pd.DataFrame(selectedpoints, columns = ["customdata"])
-        updated_df = pd.merge(self.df, selected_points, how = "inner", on="customdata")   # Filter data by using the "customdata" column
-        if isinstance(self, Scatter_plot):   # Test type of self
+        updated_df = pd.merge(self.df, selected_points, how = "inner", on="customdata")
+        if isinstance(self, Scatter_plot):
             self.fig = px.scatter(data_frame = updated_df, x = self.x,
                        y = self.y, color = self.group,
                        labels = {self.x: self.x_lab,
@@ -93,27 +69,6 @@ class Plot():
 
 
 class Histogram_plot(Plot):
-    """
-    Represents a histogram plot. Inherits from Plot class.
-    -------
-    Attributes:
-        x : str
-            the x-variable
-        x_lab : str
-            label on x-axis
-        title : str
-            title of plot
-        binwidth : int
-            the width of each bin
-        group : str
-            The attribute is optional (default = False). The varible to group the histogram by.
-    -------
-    Methods:
-        fill_plot(self, query):
-            Fills plot with data and visualizes a histogram.
-            query must be a string with a SQL query.
-            Returns plotly express object as self.fig 
-    """
     def __init__(self, x, x_lab, title, binwidth, group=False):
         self.x = x
         self.x_lab = x_lab
@@ -122,7 +77,7 @@ class Histogram_plot(Plot):
         self.group = group
     def fill_plot(self, query):
         self.df = self.get_df(query)
-        self.df.dropna(subset = ["efficiency", "region"], inplace=True)   # Delete rows where an element is NA
+        self.df.dropna(subset = ["efficiency", "region"], inplace=True)
         if not self.group:
             self.fig = px.histogram(data_frame = self.df, x = self.x,
                                 labels = {self.x: self.x_lab,
@@ -140,7 +95,7 @@ class Histogram_plot(Plot):
                                           "count": "Count"},
                                 title = self.title,
                                 template = "simple_white",
-                                nbins = int((max(self.df[self.x])-min(self.df[self.x]))/self.binwidth),   # Determine number of bins from self.binwidth
+                                nbins = int((max(self.df[self.x])-min(self.df[self.x]))/self.binwidth),
                                 color_discrete_sequence = ["green", "red", "blue", "brown", "purple"],
                                 category_orders = {"region": ["NJ", "MJ", "SJ", "FU", "ZL"]}
                                 ).update_layout(
@@ -150,35 +105,6 @@ class Histogram_plot(Plot):
 
 
 class Scatter_plot(Plot):
-    """
-    Represents a scatter plot. Inherits from Plot class.
-    -------
-    Attributes:
-        x : str
-            the x-variable
-        x_lab : str
-            label on x-axis
-        y : str
-            the y-variable
-        y_lab : str
-            label on y-axis
-        title : str
-            title of plot
-        derive : boolean
-            the attribute is optional (default = False). If True,
-            a specified variable will be derived.
-        operation : str
-            the attribute is optional (default = False). Specific string
-            identifying the operation which will be used to derive a specific variable.
-        group : str
-            the attribute is optional (default = False). The varible to group the scatter plot by.
-    -------
-    Methods:
-        fill_plot(self, query):
-            Fills plot with data according to the attributes and visualizes a scatter plot.
-            query must be a string with a SQL query.
-            Returns plotly express object as self.fig 
-    """
     def __init__(self, x, x_lab, y, y_lab, title, derive=False, operation=False, group=False):
         self.x = x
         self.x_lab = x_lab
@@ -201,7 +127,7 @@ class Scatter_plot(Plot):
                                    color_discrete_sequence=['darkblue'])
                 return self.fig
             elif self.group != "region":
-                self.df.dropna(subset = [self.group, self.x, self.y], inplace=True)   # Delete rows where an element is NA
+                self.df.dropna(subset = [self.group, self.x, self.y], inplace=True)
                 self.fig = px.scatter(data_frame = self.df, x = self.x,
                    y = self.y, color = self.group,
                    labels = {self.x: self.x_lab,
@@ -211,7 +137,7 @@ class Scatter_plot(Plot):
                    custom_data = ["customdata"]).update_layout(dragmode='select')
                 return self.fig
             else:
-                self.df.dropna(subset = [self.group, self.x, self.y], inplace=True)   # Delete rows where an element is NA
+                self.df.dropna(subset = [self.group, self.x, self.y], inplace=True)
                 self.fig = px.scatter(data_frame = self.df, x = self.x,
                    y = self.y, color = self.group,
                    labels = {self.x: self.x_lab,
@@ -232,8 +158,7 @@ class Scatter_plot(Plot):
                                              self.y: self.y_lab},
                                    title = self.title,
                                    template = "simple_white",
-                                   color_discrete_sequence=['darkblue']
-                                   ).update_traces(mode='lines+markers')   # Add lines between points
+                                   color_discrete_sequence=['darkblue']).update_traces(mode='lines+markers')
                 return self.fig
             else:
                 self.fig = px.scatter(data_frame = self.derived_df, x = self.x,
@@ -246,31 +171,15 @@ class Scatter_plot(Plot):
 
 
 class Derive_variable():
-    """
-    Determines a derived variable. It either derives number of active
-    wind turbines in each year or derives the total power production
-    in each year.
-    -------
-    Attributes:
-        df : data frame
-            Data frame with the data for deriving the variable.
-        operation : str
-            Uniqe string identifying the derived variable.
-    Methods:
-        derive(self):
-            Determines the values for the derived variable for each row in 
-            self.df and loads them into the data frame in a new column.
-            Returns the new data frame.
-    """
     def __init__(self, df, operation):
         self.df = df
         self.operation = operation
     def derive(self):
         if self.operation == "active_turbines":
-            template = {"Year": [datetime.date(year, 1, 1) for year in range(1977, 2021)], "n": [0]*44}   # "Year"-elements is a datatime object. Year range from 1977 to 2021
+            template = {"Year": [datetime.date(year, 1, 1) for year in range(1977, 2021)], "n": [0]*44}
             for y in range(len(template["Year"])):
                 for index in range(len(self.df["date_of_connection"])):
-                    if self.df["date_of_connection"][index] <= template["Year"][y]:   # Test if wind turbine was connected before the current year in the outer for-loop
+                    if self.df["date_of_connection"][index] <= template["Year"][y]:
                         if self.df["date_of_decommission"][index] == None:
                            template["n"][y] += 1
                         elif self.df["date_of_decommission"][index] >= template["Year"][y]:
@@ -278,43 +187,22 @@ class Derive_variable():
             self.new_df = pd.DataFrame.from_dict(data=template)
             return self.new_df
         elif self.operation == "production":
-            template = {"Year": [year for year in range(1977,2021)], "Production": [0]*44}   # Create dictionary with Year column and production column
+            template = {"Year": [year for year in range(1977,2021)], "Production": [0]*44}
             index_dict = {}   # Create index dictionary to improve performance
             keys = [year for year in range(1977,2021)]
             values = [i for i in range(44)]
-            for i in values:   # Fill index_dictionary with an index for each year
+            for i in values:
                 index_dict[keys[i]] = i
             
-            for year in range(len(self.df["year"])):   # self.df["year"] is column with each year each wind turbine produced power
-                index = index_dict[int(self.df["year"][year][1:])]   # self.df["year"][year][1:] is the year in which the kWh was produced
-                template["Production"][index] += self.df["kwh"][year]   # Add the produced power to the current year in the iteration
-            self.new_df = pd.DataFrame.from_dict(data=template)   # Convert dictionary to data frame
+            for year in range(len(self.df["year"])):
+                index = index_dict[int(self.df["year"][year][1:])]
+                template["Production"][index] += self.df["kwh"][year]
+            self.new_df = pd.DataFrame.from_dict(data=template)
             self.new_df["Production"] = self.new_df["Production"]/1000000
             return self.new_df
 
 
 class Violin_plot(Plot):
-    """
-    Represents a violin plot. Inherits from Plot class.
-    -------
-    Attributes:
-        x : str
-            the x-variable
-        x_lab : str
-            label on x-axis
-        y : str
-            the y-variable
-        y_lab : str
-            label on y-axis
-        title : str
-            title of plot
-    -------
-    Methods:
-        fill_plot(self, query):
-            Fills plot with data according to the attributes and visualizes a violin plot.
-            query must be a string with a SQL query.
-            Returns plotly express object as self.fig 
-    """
     def __init__(self, x, x_lab, y, y_lab, title):
         self.x = x
         self.x_lab = x_lab
@@ -323,7 +211,7 @@ class Violin_plot(Plot):
         self.title = title
     def fill_plot(self, query):
         self.df = self.get_df(query)
-        self.df.dropna(subset = self.df.columns, inplace=True)   # Delete rows where an element is NA
+        self.df.dropna(subset = self.df.columns, inplace=True)
         self.fig = px.violin(data_frame = self.df,
                          x = self.x,
                          y = self.y,
@@ -339,22 +227,10 @@ class Violin_plot(Plot):
         return self.fig
 
 class Map_plot(Plot):
-    """
-    Represents a scatter plot with an image as background.
-    -------
-    Methods:
-        fill_plot(self, query):
-            Fills plot with data according to the attributes and visualizes
-            a scatter plot with an image (map) as background.
-            It filters the data for incorrect or dirty data and transforms
-            the coordinates from utm to latitude and longitude.
-            query must be a string with a SQL query.
-            Returns plotly express object.
-    """
     def fill_plot(self, query):
         self.df = self.get_df(query)
         background = Image.open('map.png')
-        BBox = [7.39554279514701, 15.289272812025047, 54.27544003736202+0.035, 57.98745197773329+0.035]   # Border values for the map
+        BBox = [7.39554279514701, 15.289272812025047, 54.27544003736202+0.035, 57.98745197773329+0.035]
         
         coord_utm = self.df[["x_coordinates", "y_coordinates"]]
         
@@ -364,7 +240,6 @@ class Map_plot(Plot):
         efficiency = []
         for i in range(n_row):
             if coord_utm["x_coordinates"][i] > 100000 and coord_utm["x_coordinates"][i] < 999999 and self.df["efficiency"][i] > 1.0:
-                # Only include coordinates for wind turbines with valid coordinates and efficiency.
                 x_utm.append(coord_utm["x_coordinates"][i])
                 y_utm.append(coord_utm["y_coordinates"][i])
                 efficiency.append(self.df["efficiency"][i])
@@ -372,7 +247,7 @@ class Map_plot(Plot):
         x_lat = []
         y_lon = []
         for i in range(len(x_utm)):
-            lat_lon = utm.to_latlon(x_utm[i], y_utm[i], zone_number = 32, northern = True)   # Convert utm coordinates to latitude, longitude
+            lat_lon = utm.to_latlon(x_utm[i], y_utm[i], zone_number = 32, northern = True)
             x_lat.append(lat_lon[0])
             y_lon.append(lat_lon[1])
 
@@ -405,25 +280,6 @@ class Map_plot(Plot):
 
 
 class Plots_set():
-    """
-    Represents a set of all plots. The plots can be accessed through a dictionary.
-    -------
-    Attributes:
-        wind_turbines : Scatter_plot object
-        power_production : Scatter_plot object
-        hub_rot : Scatter_plot object
-        cap_rot_hub : Scatter_plot object
-        efficiency_hist : Histogram_plot object
-        map1 : Map_plot object
-        efficiency_violin : Violing_plot object
-        capacity_efficiency : Scatter_plot object
-    -------
-    Methods:
-        generate(self):
-            The method calls the fill_plot method on all the attribute objects
-            and stores them in a dictionary in self.plot_dictionary.
-            Returns dictionary with plots.
-    """
     def __init__(self):
         self.wind_turbines = Scatter_plot(x = "Year", x_lab = "Year", y = "n", y_lab = "Quantity", title = "Number of active wind turbines in each year", derive = True, operation = "active_turbines")
         self.power_production = Scatter_plot(x = "Year", x_lab = "Year", y = "Production", y_lab = "Production (GWH)", title = "Production in each year", derive = True, operation = "production")
@@ -483,9 +339,7 @@ class Plots_set():
 plots_object = Plots_set()
 plot_dictionary = plots_object.generate()
 
-
-# ===========App layout===========
-
+# App part starts here+
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 app.layout = dbc.Container(
@@ -515,8 +369,6 @@ app.layout = dbc.Container(
     style={"height": "100vh"},
 )
 
-
-# ===========App callbacks===========
 
 @app.callback(
     Output("tab-content", "children"),
@@ -664,16 +516,13 @@ def render_tab_content(active_tab, data):
 @app.callback(Output("store", "data"), [Input("button", "n_clicks")])
 def generate_graphs(n):
     """
-    This callback gets all the figures from global variable with dictionary of
-    plots. It takes the "n_clicks" as input.
-    Returns dictionary with plots. If the "Generate graphs" button is not
-    clicked. Empty graphs will be shown.
+    This callback gets all the figures from global variable.
     """
     if not n:
-        # Generate empty graphs when app loads
+        # generate empty graphs when app loads
         return {k: go.Figure(data=[]) for k in ["active_turbines", "power_production", "hub_rot", "cap_rot_hub", "efficiency_hist", "map1", "efficiency_violin", "capacity_efficiency"]}
     
-    # Send plot dictionary to the dcc.Store
+    # sending plot dictionary to the dcc.Store
     return plot_dictionary
 
                                                     
@@ -684,19 +533,12 @@ def generate_graphs(n):
     Input("eff_violin_plot2", "selectedData")
     )
 def update(selection1, selection2):
-    """
-    This callback updates the the capacity vs efficiency scatter plot and the
-    efficiency histogram plot. It takes the "selecetedData" properties from
-    the two graphs as inpupt.
-    Returns updated plots.
-    """
     if selection1:
         selected_points = [p["customdata"] for p in selection1["points"]]
     elif selection2:
         selected_points = [p["customdata"] for p in selection2["points"]]
     else:
         selected_points = plots_object.capacity_efficiency.df["customdata"]
-    # Send the two updated figures back to dash layout part
     return [plots_object.capacity_efficiency.update_plot(selected_points),
             plots_object.efficiency_violin.update_plot(selected_points)]
 

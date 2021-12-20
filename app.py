@@ -335,7 +335,7 @@ class Violin_plot(Plot):
                          box = True,
                          color_discrete_sequence = ["green", "red", "blue", "brown", "purple"],
                          category_orders = {"region": ["NJ", "MJ", "SJ", "FU", "ZL"]},
-                         custom_data = ["customdata"]).update_layout(dragmode='select')
+                         custom_data = ["customdata"]).update_layout(dragmode='select').update_yaxes(range = [0,80])
         return self.fig
 
 class Map_plot(Plot):
@@ -627,7 +627,16 @@ def render_tab_content(active_tab, data):
                             relativly high efficiency compared to the other regions. North Jutland is most represented in wind turbines with an 
                             efficiency greater than 46%.
                             '''),
-                dbc.Row([dbc.Col(dcc.Graph(figure=data["efficiency_violin"]), width=9)],
+                dbc.Row([dbc.Col(dcc.Graph(id = "eff_violin", figure=data["efficiency_violin"]), width=9),
+                         dbc.Col(dcc.RadioItems(id = "radioitem",
+                            options=[
+                                {'label': 'All', 'value': 'all'},
+                                {'label': 'Onshore', 'value': 'onshore'},
+                                {'label': 'Offshore', 'value': 'offshore'}
+                            ],
+                            value='all',
+                            labelStyle={'display': 'block'}
+                        ))],
                     className="h-50"),
                 dcc.Markdown('''
                              Now we can see the distribution of efficiency within each region and compare quartiles between regions. We can also 
@@ -701,7 +710,43 @@ def update(selection1, selection2):
             plots_object.efficiency_violin.update_plot(selected_points)]
 
 
-
+@app.callback(
+    Output("eff_violin", "figure"),
+    Input("radioitem", "value")
+    )
+def update_radio(value):
+    """
+    This callback changes the violin plot to include all wind turbines, only onshore
+    wind turbines, or only offshore wind turbines. It takes the the 'value'
+    property of the radioitem component as input.
+    Returns violin plot to figure of component with id='eff_violin'.
+    """
+    if value == "all":
+        return plots_object.efficiency_violin.fill_plot("""
+                                                        SELECT "efficiency", "capacity", "region"
+                                                        FROM "efficiency" AS e
+                                                        FULL JOIN "turbine_characteristics" as t on e."turbine_id"=t."turbine_id"
+                                                        FULL JOIN "turbines" AS t2 on e."turbine_id"=t2."turbine_id"
+                                                        WHERE t."capacity">5
+                                                        """)
+    elif value == "onshore":
+        return plots_object.efficiency_violin.fill_plot("""
+                                                        SELECT "efficiency", "region"
+                                                        FROM "efficiency" AS e
+                                                        FULL JOIN "turbine_characteristics" as t on e."turbine_id"=t."turbine_id"
+                                                        FULL JOIN "turbines" AS t2 on e."turbine_id"=t2."turbine_id"
+                                                        FULL JOIN "location" AS l ON e."turbine_id"=l."turbine_id"
+                                                        WHERE t."capacity">5 AND l."type_of_location"='Land'
+                                                        """)
+    else:
+        return plots_object.efficiency_violin.fill_plot("""
+                                                        SELECT "efficiency", "region"
+                                                        FROM "efficiency" AS e
+                                                        FULL JOIN "turbine_characteristics" as t on e."turbine_id"=t."turbine_id"
+                                                        FULL JOIN "turbines" AS t2 on e."turbine_id"=t2."turbine_id"
+                                                        FULL JOIN "location" AS l ON e."turbine_id"=l."turbine_id"
+                                                        WHERE t."capacity">5 AND l."type_of_location"='Hav'
+                                                        """)
 
 if __name__ == "__main__":
     app.run_server(debug=True, port=8888)

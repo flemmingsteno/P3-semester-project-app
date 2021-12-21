@@ -643,6 +643,10 @@ def render_tab_content(active_tab, data):
                              compare the specific distribution, and see that the distribution of Zealand looks more spread than for example the distribution 
                              of Mid Jutland which has many wind turbines with an efficiency around 21%. However, Mid Jutland has many outliers as well. 
                              We see that North Jutland and Mid Jutland has the wind turbines with the highest max efficiency of around 71% and 77 % respectively.
+                             
+                             By choosing back and forth between the "All" and the "Onshore" options in the items on the right, you can see the effect that
+                             offshore wind turbines have on the efficiency in each region. Notice how the interquartile range becomes much bigger in the
+                             Zealand region and the South Jutland region when going from onshore turbines to all turbines.
                             ''')
                 ]
         elif active_tab =="capacity":
